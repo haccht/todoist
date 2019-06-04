@@ -16,5 +16,3 @@ $ todoist
 
 You'll required the Todoist API token for the first run.  
 Enjoy!
-
-![screenshot](screenshot.png)
