@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	todoistSyncAPI = "https://api.todoist.com/sync/v8/sync"
+	todoistSyncAPI = "https://api.todoist.com/sync/v8"
 	todoistRESTAPI = "https://api.todoist.com/rest/v1"
 )
 
