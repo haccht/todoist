@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	todoistSyncAPI = "https://todoist.com/api/v8"
-	todoistRESTAPI = "https://beta.todoist.com/API/v8"
+	todoistSyncAPI = "https://api.todoist.com/sync/v8/sync"
+	todoistRESTAPI = "https://api.todoist.com/rest/v1"
 )
 
 type Client struct {
