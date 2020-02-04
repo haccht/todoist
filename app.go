@@ -2,7 +2,6 @@ package todoist
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/gdamore/tcell"
@@ -11,8 +10,8 @@ import (
 
 type Application struct {
 	ui     *UI
-	config *Config
 	client *Client
+	config *Config
 
 	tasks    []*Task
 	labels   map[uint]string
@@ -25,14 +24,22 @@ func NewApplication() (*Application, error) {
 		return nil, err
 	}
 
-	ui := NewUI()
-	client := NewClient(config.Token)
+	a := &Application{
+		ui:       NewUI(),
+		client:   NewClient(config.Token),
+		config:   config,
+		tasks:    []*Task{},
+		labels:   map[uint]string{},
+		projects: map[uint]string{},
+	}
 
-	a := &Application{ui: ui, config: config, client: client}
 	a.ui.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		if event.Key() == tcell.KeyEnter {
+		switch event.Key() {
+		case tcell.KeyEnter:
 			a.ShowDetail()
-		} else {
+		case tcell.KeyEscape:
+			a.Stop()
+		default:
 			switch event.Rune() {
 			case '?':
 				a.ShowHelp()
@@ -47,9 +54,9 @@ func NewApplication() (*Application, error) {
 			case 'd':
 				a.EditDuedate()
 			case 'p':
-				a.EditProject()
+				a.MoveProject()
 			case 'r':
-				a.Init()
+				a.Refresh()
 			case 'C':
 				a.Complete()
 			case 'D':
@@ -70,7 +77,7 @@ func NewApplication() (*Application, error) {
 		return event
 	})
 
-	if err := a.Init(); err != nil {
+	if err := a.Refresh(); err != nil {
 		return nil, err
 	}
 
@@ -85,8 +92,7 @@ func (a *Application) Stop() {
 	a.ui.Stop()
 }
 
-func (a *Application) Init() error {
-	a.labels = map[uint]string{}
+func (a *Application) Refresh() error {
 	if labels, err := a.client.ListLabels(); err != nil {
 		return err
 	} else {
@@ -95,7 +101,6 @@ func (a *Application) Init() error {
 		}
 	}
 
-	a.projects = map[uint]string{}
 	if projects, err := a.client.ListProjects(); err != nil {
 		return err
 	} else {
@@ -111,24 +116,23 @@ func (a *Application) Init() error {
 }
 
 func (a *Application) ShowHelp() {
-	var help = `
-       q [yellow]quit[-]
-       ? [yellow]help[-]
+	var help = `       [::b]q :[::-] Quit
+       [::b]? :[::-] Help
 
-       f [yellow]filter list[-]
-       r [yellow]refresh lisk[-]
+       [::b]f :[::-] Filter list
+       [::b]r :[::-] Refresh lisk
 
-       a [yellow]quick add[-]
-       v [yellow]task detail[-]
-   enter [yellow]task detail[-]
+       [::b]a :[::-] Quick add
+       [::b]v :[::-] Task detail
+   [::b]enter :[::-] Task detail
 
- shift+c [yellow]close task[-]
- shift+d [yellow]delete task[-]
+ [::b]shift+c :[::-] Close task
+ [::b]shift+d :[::-] Delete task
 
-       e [yellow]edit text[-]
-       p [yellow]move project[-]
-       d [yellow]set due date[-]
-     1-4 [yellow]set priority P1 to P4[-]`
+       [::b]e :[::-] Edit text
+       [::b]p :[::-] Move project
+       [::b]d :[::-] Set due date
+     [::b]1-4 :[::-] Set priority P1 to P4`
 
 	a.ui.Popup("Help", help)
 }
@@ -137,14 +141,13 @@ func (a *Application) ShowDetail() {
 	_, t := a.GetSelection()
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "[::b]Project:[::-]  %s\n", a.Project(t.ProjectID))
-	fmt.Fprintf(&b, "[::b]DueDate:[::-]  %s\n", t.DueString())
-	fmt.Fprintf(&b, "[::b]Labels:[::-]   %s\n", strings.Join(a.Labels(t.LabelIDs), ","))
-	fmt.Fprintf(&b, "[::b]Priority:[::-] P%d\n", 5-t.Priority)
-	fmt.Fprintf(&b, "[::b]URL:[::-] %s\n", t.URL)
+	fmt.Fprintf(&b, "[::b]Project:[-::-]  %s\n", a.project(t.ProjectID))
+	fmt.Fprintf(&b, "[::b]DueDate:[-::-]  %s\n", t.DueString())
+	fmt.Fprintf(&b, "[::b]Labels:[-::-]   %s\n", strings.Join(a.label(t.LabelIDs), ","))
+	fmt.Fprintf(&b, "[::b]Priority:[-::-] P%d\n", 5-t.Priority)
+	fmt.Fprintf(&b, "[::b]URL:[-::-] %s\n", t.URL)
 
-	rep := regexp.MustCompile("\\((https?://[^\\)]+)\\)")
-	fmt.Fprintf(&b, "\n\n%s[-]", rep.ReplaceAllString(t.Content, "( $1 )"))
+	fmt.Fprintf(&b, "\n\n%s", marginLink(t.Content))
 
 	comments, err := a.client.ListComments(&map[string]interface{}{"task_id": t.ID})
 	if err != nil {
@@ -152,7 +155,7 @@ func (a *Application) ShowDetail() {
 	} else if len(comments) > 0 {
 		fmt.Fprintf(&b, "\n\n--\n")
 		for _, comment := range comments {
-			fmt.Fprintf(&b, "%s\n%s\n", comment.Posted, rep.ReplaceAllString(comment.Content, "( $1 )"))
+			fmt.Fprintf(&b, "%s\n%s\n", comment.Posted, marginLink(comment.Content))
 		}
 	}
 
@@ -160,7 +163,7 @@ func (a *Application) ShowDetail() {
 }
 
 func (a *Application) QuickFilter() {
-	a.ui.FormInput("Quick filter", a.config.Filter, func(text string) {
+	a.ui.PopupInput("Quick filter", a.config.Filter, func(text string) {
 		if err := a.SetFilter(text); err != nil {
 			a.ui.ErrorMessage(err)
 		}
@@ -168,7 +171,7 @@ func (a *Application) QuickFilter() {
 }
 
 func (a *Application) QuickAdd() {
-	a.ui.FormInput("Quick add", "", func(text string) {
+	a.ui.PopupInput("Quick add", "", func(text string) {
 		var err error
 		if err = a.client.QuickAddTask(text, nil); err != nil {
 			a.ui.ErrorMessage(err)
@@ -177,13 +180,14 @@ func (a *Application) QuickAdd() {
 
 		if err = a.Update(); err != nil {
 			a.ui.ErrorMessage(err)
+			return
 		}
 	})
 }
 
 func (a *Application) EditContent() {
 	r, t := a.GetSelection()
-	a.ui.FormInput("Edit text", t.Content, func(text string) {
+	a.ui.PopupInput("Edit text", t.Content, func(text string) {
 		var err error
 		if err = a.client.UpdateTask(t.ID, &map[string]interface{}{"content": text}); err != nil {
 			a.ui.ErrorMessage(err)
@@ -202,7 +206,7 @@ func (a *Application) EditContent() {
 
 func (a *Application) EditDuedate() {
 	r, t := a.GetSelection()
-	a.ui.FormInput("Edit due date", t.Due.String, func(text string) {
+	a.ui.PopupInput("Edit due date", t.Due.String, func(text string) {
 		var err error
 		if err = a.client.UpdateTask(t.ID, &map[string]interface{}{"due_string": text}); err != nil {
 			a.ui.ErrorMessage(err)
@@ -219,9 +223,9 @@ func (a *Application) EditDuedate() {
 	})
 }
 
-func (a *Application) EditProject() {
+func (a *Application) MoveProject() {
 	r, t := a.GetSelection()
-	a.ui.FormInput("Move project", a.Project(t.ProjectID), func(text string) {
+	a.ui.PopupInput("Move project", a.project(t.ProjectID), func(text string) {
 		var projectID uint
 		for k, v := range a.projects {
 			if strings.EqualFold(text, v) {
@@ -231,7 +235,7 @@ func (a *Application) EditProject() {
 		}
 
 		if projectID == 0 {
-			a.ui.ErrorMessage(fmt.Errorf("Invalid project Name: %s", text))
+			a.ui.ErrorMessage(fmt.Errorf("Invalid project name: %s", text))
 			return
 		}
 
@@ -282,7 +286,7 @@ func (a *Application) Complete() {
 
 func (a *Application) Delete() {
 	r, t := a.GetSelection()
-	message := fmt.Sprintf("Are you sure you want to delete `%s`?", t.Content)
+	message := fmt.Sprintf("Are you sure you want to delete `%s`?", sanitizeLink(t.Content))
 	a.ui.PopupConfirm(message, []string{"Delete", "Cancel"}, func(text string) {
 		if text == "Delete" {
 			if err := a.client.DeleteTask(t.ID); err != nil {
@@ -342,7 +346,7 @@ func (a *Application) cells(r int, t *Task) []*tview.TableCell {
 	case t.IsOverdue():
 		c.SetTextColor(tcell.ColorRed)
 	case t.IsDuedate():
-		c.SetTextColor(tcell.ColorFuchsia)
+		c.SetTextColor(tcell.ColorIndianRed)
 	}
 
 	c = tview.NewTableCell(fmt.Sprintf("P%d", 5-t.Priority))
@@ -356,23 +360,23 @@ func (a *Application) cells(r int, t *Task) []*tview.TableCell {
 		c.SetTextColor(tcell.ColorDarkRed)
 	}
 
-	c = tview.NewTableCell(a.Project(t.ProjectID)).SetMaxWidth(16)
+	c = tview.NewTableCell(a.project(t.ProjectID)).SetMaxWidth(16)
 	cells = append(cells, c)
 
-	c = tview.NewTableCell(t.Content)
+	c = tview.NewTableCell(sanitizeLink(t.Content))
 	cells = append(cells, c)
 
 	return cells
 }
 
-func (a *Application) Project(projectID uint) string {
+func (a *Application) project(projectID uint) string {
 	return a.projects[projectID]
 }
 
-func (a *Application) Labels(labelIDs []uint) []string {
-	labels := []string{}
+func (a *Application) label(labelIDs []uint) []string {
+	list := []string{}
 	for _, labelID := range labelIDs {
-		labels = append(labels, a.labels[labelID])
+		list = append(list, a.labels[labelID])
 	}
-	return labels
+	return list
 }

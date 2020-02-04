@@ -33,10 +33,17 @@ func NewClient(authToken string) *Client {
 	}
 }
 
-type requestOption struct {
+type RequestOption struct {
 	Params  map[string]string
 	Headers map[string]string
 	Body    io.Reader
+}
+
+func NewRequestOption() *RequestOption {
+	return &RequestOption{
+		Params:  make(map[string]string),
+		Headers: make(map[string]string),
+	}
 }
 
 func restEndpoint(elm ...interface{}) *url.URL {
@@ -87,9 +94,9 @@ func decodeJSON(resp *http.Response, out interface{}) error {
 	return dec.Decode(out)
 }
 
-func (c *Client) httpRequest(method string, u *url.URL, ro *requestOption) (*http.Response, error) {
+func (c *Client) httpRequest(method string, u *url.URL, ro *RequestOption) (*http.Response, error) {
 	if ro == nil {
-		ro = new(requestOption)
+		ro = NewRequestOption()
 	}
 
 	var params = make(url.Values)

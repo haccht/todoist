@@ -13,8 +13,7 @@ type Comment struct {
 }
 
 func (c *Client) ListComments(args *map[string]interface{}) ([]*Comment, error) {
-	ro := new(requestOption)
-	ro.Params = make(map[string]string)
+	ro := NewRequestOption()
 	for k, v := range *args {
 		ro.Params[k] = fmt.Sprint(v)
 	}

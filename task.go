@@ -76,9 +76,8 @@ func (t *Task) IsDuedate() bool {
 }
 
 func (c *Client) ListTasks(filter *map[string]interface{}) ([]*Task, error) {
-	ro := new(requestOption)
+	ro := NewRequestOption()
 	if filter != nil {
-		ro.Params = make(map[string]string)
 		for k, v := range *filter {
 			ro.Params[k] = fmt.Sprint(v)
 		}
@@ -99,9 +98,8 @@ func (c *Client) AddTask(args *map[string]interface{}) (*Task, error) {
 		return nil, err
 	}
 
-	ro := new(requestOption)
+	ro := NewRequestOption()
 	ro.Body = bytes.NewBuffer(data)
-	ro.Headers = make(map[string]string)
 	ro.Headers["X-Request-Id"] = uuid.New().String()
 	ro.Headers["Content-Type"] = "application/json"
 
@@ -130,9 +128,8 @@ func (c *Client) UpdateTask(id uint, args *map[string]interface{}) error {
 		return err
 	}
 
-	ro := new(requestOption)
+	ro := NewRequestOption()
 	ro.Body = bytes.NewBuffer(data)
-	ro.Headers = make(map[string]string)
 	ro.Headers["X-Request-Id"] = uuid.New().String()
 	ro.Headers["Content-Type"] = "application/json"
 
@@ -166,9 +163,8 @@ func (c *Client) MoveTask(id uint, args *map[string]interface{}) error {
 	params := url.Values{}
 	params.Add("commands", makeCommand("item_move", commandArgs))
 
-	ro := new(requestOption)
+	ro := NewRequestOption()
 	ro.Body = bytes.NewBufferString(params.Encode())
-	ro.Headers = make(map[string]string)
 	ro.Headers["Content-Type"] = "application/x-www-form-urlencoded"
 
 	_, err := c.httpRequest("POST", syncEndpoint("/sync"), ro)
@@ -183,9 +179,8 @@ func (c *Client) QuickAddTask(text string, args *map[string]interface{}) error {
 		}
 	}
 
-	ro := new(requestOption)
+	ro := NewRequestOption()
 	ro.Body = bytes.NewBufferString(params.Encode())
-	ro.Headers = make(map[string]string)
 	ro.Headers["Content-Type"] = "application/x-www-form-urlencoded"
 
 	_, err := c.httpRequest("POST", syncEndpoint("/quick/add"), ro)
