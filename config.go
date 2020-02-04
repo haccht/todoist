@@ -11,6 +11,7 @@ const configFile = "todoist.json"
 type Config struct {
 	Token  string `json:"token"`
 	Filter string `json:"filter,omitempty"`
+	Closed uint   `json:"closed,omitempty"`
 }
 
 func NewConfig() (*Config, error) {

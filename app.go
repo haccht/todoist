@@ -57,10 +57,12 @@ func NewApplication() (*Application, error) {
 				a.MoveProject()
 			case 'r':
 				a.Refresh()
-			case 'C':
-				a.Complete()
 			case 'D':
 				a.Delete()
+			case 'C':
+				a.Complete()
+			case 'u':
+				a.Reopen()
 			case '1':
 				a.SetPriority(4)
 			case '2':
@@ -116,23 +118,25 @@ func (a *Application) Refresh() error {
 }
 
 func (a *Application) ShowHelp() {
-	var help = `       [::b]q :[::-] Quit
+	var help = `
+       [::b]Q :[::-] Quit
        [::b]? :[::-] Help
 
-       [::b]f :[::-] Filter list
-       [::b]r :[::-] Refresh lisk
+       [::b]F :[::-] Filter the list
+       [::b]R :[::-] Refresh the lisk
 
-       [::b]a :[::-] Quick add
-       [::b]v :[::-] Task detail
-   [::b]enter :[::-] Task detail
+       [::b]A :[::-] Quick add
+       [::b]V :[::-] Task detail
+   [::b]Enter :[::-] Task detail
 
- [::b]shift+c :[::-] Close task
- [::b]shift+d :[::-] Delete task
+ [::b]Shift-D :[::-] Delete a task
+ [::b]Shift-C :[::-] Complete a task
+       [::b]U :[::-] Uncomplete a task
 
-       [::b]e :[::-] Edit text
-       [::b]p :[::-] Move project
-       [::b]d :[::-] Set due date
-     [::b]1-4 :[::-] Set priority P1 to P4`
+       [::b]E :[::-] Edit the text
+       [::b]P :[::-] Move the project
+       [::b]D :[::-] Set the due date
+     [::b]1-4 :[::-] Set the priority P1 to P4`
 
 	a.ui.Popup("Help", help)
 }
@@ -273,12 +277,32 @@ func (a *Application) SetPriority(p int) {
 	a.ui.RenderRow(r, a.cells(r, t)...)
 }
 
+func (a *Application) Reopen() {
+	if a.config.Closed == 0 {
+		return
+	}
+
+	var err error
+	if err = a.client.ReopenTask(a.config.Closed); err != nil {
+		a.ui.ErrorMessage(err)
+		return
+	}
+
+	if err = a.Update(); err != nil {
+		a.ui.ErrorMessage(err)
+		return
+	}
+}
+
 func (a *Application) Complete() {
 	r, t := a.GetSelection()
 	if err := a.client.CloseTask(t.ID); err != nil {
 		a.ui.ErrorMessage(err)
 		return
 	}
+
+	a.config.Closed = t.ID
+	a.config.Save()
 
 	a.tasks = append(a.tasks[:r], a.tasks[r+1:]...)
 	a.ui.RemoveRow(r)
