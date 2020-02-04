@@ -21,7 +21,7 @@ func TestTask(t *testing.T) {
 	}
 
 	found := false
-	for _, v := range *list {
+	for _, v := range list {
 		if v.ID == item.ID && v.Content == "created" {
 			found = true
 		}

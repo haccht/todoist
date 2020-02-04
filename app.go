@@ -3,7 +3,6 @@ package todoist
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/gdamore/tcell"
 	"github.com/rivo/tview"
@@ -14,7 +13,7 @@ type Application struct {
 	config *Config
 	client *Client
 
-	tasks    []Task
+	tasks    []*Task
 	labels   map[uint]string
 	projects map[uint]string
 }
@@ -29,38 +28,44 @@ func NewApplication() (*Application, error) {
 	client := NewClient(config.Token)
 
 	a := &Application{ui: ui, config: config, client: client}
-	a.ui.StatusMessage("[f[]Filter [v[]Detail [a[]Add [e[]Edit [d[]Due [p[]Project [1-4[]Priority [r[]Refresh [C[]Close [D[]Delete", 0)
 	a.ui.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		switch event.Rune() {
-		case 'v':
+		if event.Key() == tcell.KeyEnter {
 			a.ShowDescription()
-		case 'a':
-			a.QuickAdd()
-		case 'f':
-			a.QuickFilter()
-		case 'e':
-			a.EditContent()
-		case 'd':
-			a.EditDuedate()
-		case 'p':
-			a.EditProject()
-		case 'r':
-			a.Init()
-		case 'C':
-			a.Complete()
-		case 'D':
-			a.Delete()
-		case '1':
-			a.SetPriority(4)
-		case '2':
-			a.SetPriority(3)
-		case '3':
-			a.SetPriority(2)
-		case '4':
-			a.SetPriority(1)
-		case 'q':
-			a.ui.Stop()
+		} else {
+			switch event.Rune() {
+			case '?':
+				a.ShowHelp()
+			case 'v':
+				a.ShowDescription()
+			case 'a':
+				a.QuickAdd()
+			case 'f':
+				a.QuickFilter()
+			case 'e':
+				a.EditContent()
+			case 'd':
+				a.EditDuedate()
+			case 'p':
+				a.EditProject()
+			case 'r':
+				a.Init()
+			case 'C':
+				a.Complete()
+			case 'D':
+				a.Delete()
+			case '1':
+				a.SetPriority(4)
+			case '2':
+				a.SetPriority(3)
+			case '3':
+				a.SetPriority(2)
+			case '4':
+				a.SetPriority(1)
+			case 'q':
+				a.Stop()
+			}
 		}
+
 		return event
 	})
 
@@ -75,12 +80,16 @@ func (a *Application) Run() error {
 	return a.ui.Run()
 }
 
+func (a *Application) Stop() {
+	a.ui.Stop()
+}
+
 func (a *Application) Init() error {
 	a.labels = map[uint]string{}
 	if labels, err := a.client.ListLabels(); err != nil {
 		return err
 	} else {
-		for _, label := range *labels {
+		for _, label := range labels {
 			a.labels[label.ID] = "@" + label.Name
 		}
 	}
@@ -89,7 +98,7 @@ func (a *Application) Init() error {
 	if projects, err := a.client.ListProjects(); err != nil {
 		return err
 	} else {
-		for _, project := range *projects {
+		for _, project := range projects {
 			a.projects[project.ID] = "#" + project.Name
 		}
 	}
@@ -100,8 +109,27 @@ func (a *Application) Init() error {
 	return nil
 }
 
-func (a *Application) ErrorMessage(err error) {
-	a.ui.StatusMessage(fmt.Sprintf("[red][ERROR[] %s[-]", err), 3*time.Second)
+func (a *Application) ShowHelp() {
+	var help = `
+       q [yellow]quit[-]
+       ? [yellow]help[-]
+
+       f [yellow]filter list[-]
+       r [yellow]refresh lisk[-]
+
+       a [yellow]quick add[-]
+       v [yellow]task detail[-]
+   enter [yellow]task detail[-]
+
+ shift+c [yellow]close task[-]
+ shift+d [yellow]delete task[-]
+
+       e [yellow]edit text[-]
+       p [yellow]move project[-]
+       d [yellow]set due date[-]
+     1-4 [yellow]set priority P1 to P4[-]`
+
+	a.ui.Popup("Help", help)
 }
 
 func (a *Application) ShowDescription() {
@@ -115,10 +143,12 @@ func (a *Application) ShowDescription() {
 	fmt.Fprintf(&b, "[::b]URL:[::-] %s\n", t.URL)
 	fmt.Fprintf(&b, "\n\n%s[-]", t.Content)
 
-	comments, _ := a.client.ListComments(&map[string]interface{}{"task_id": t.ID})
-	if len(*comments) > 0 {
+	comments, err := a.client.ListComments(&map[string]interface{}{"task_id": t.ID})
+	if err != nil {
+		a.ui.ErrorMessage(err)
+	} else if len(comments) > 0 {
 		fmt.Fprintf(&b, "\n\n--\n")
-		for _, comment := range *comments {
+		for _, comment := range comments {
 			fmt.Fprintf(&b, "%s\n%s\n", comment.Posted, comment.Content)
 		}
 	}
@@ -126,69 +156,69 @@ func (a *Application) ShowDescription() {
 	a.ui.Popup("Detail", b.String())
 }
 
-func (a *Application) QuickAdd() {
-	a.ui.FormInput("Quick add", "", func(text string) {
-		var err error
-		if err = a.client.QuickAddTask(text, nil); err != nil {
-			a.ErrorMessage(err)
-			return
-		}
-
-		if err = a.Update(); err != nil {
-			a.ErrorMessage(err)
+func (a *Application) QuickFilter() {
+	a.ui.FormInput("Quick filter", a.config.Filter, func(text string) {
+		if err := a.SetFilter(text); err != nil {
+			a.ui.ErrorMessage(err)
 		}
 	})
 }
 
-func (a *Application) QuickFilter() {
-	a.ui.FormInput("Quick filter", a.GetFilter(), func(text string) {
-		if err := a.SetFilter(text); err != nil {
-			a.ErrorMessage(err)
+func (a *Application) QuickAdd() {
+	a.ui.FormInput("Quick add", "", func(text string) {
+		var err error
+		if err = a.client.QuickAddTask(text, nil); err != nil {
+			a.ui.ErrorMessage(err)
+			return
+		}
+
+		if err = a.Update(); err != nil {
+			a.ui.ErrorMessage(err)
 		}
 	})
 }
 
 func (a *Application) EditContent() {
 	r, t := a.GetSelection()
-	a.ui.FormInput("Edit content", t.Content, func(text string) {
+	a.ui.FormInput("Edit text", t.Content, func(text string) {
 		var err error
 		if err = a.client.UpdateTask(t.ID, &map[string]interface{}{"content": text}); err != nil {
-			a.ErrorMessage(err)
+			a.ui.ErrorMessage(err)
 			return
 		}
 
 		if t, err = a.client.GetTask(t.ID); err != nil {
-			a.ErrorMessage(err)
+			a.ui.ErrorMessage(err)
 			return
 		}
 
-		a.tasks[r] = *t
-		a.RenderTableRow(r, t)
+		a.tasks[r] = t
+		a.ui.RenderRow(r, a.cells(r, t)...)
 	})
 }
 
 func (a *Application) EditDuedate() {
 	r, t := a.GetSelection()
-	a.ui.FormInput("Edit duedate", t.Due.String, func(text string) {
+	a.ui.FormInput("Edit due date", t.Due.String, func(text string) {
 		var err error
 		if err = a.client.UpdateTask(t.ID, &map[string]interface{}{"due_string": text}); err != nil {
-			a.ErrorMessage(err)
+			a.ui.ErrorMessage(err)
 			return
 		}
 
 		if t, err = a.client.GetTask(t.ID); err != nil {
-			a.ErrorMessage(err)
+			a.ui.ErrorMessage(err)
 			return
 		}
 
-		a.tasks[r] = *t
-		a.RenderTableRow(r, t)
+		a.tasks[r] = t
+		a.ui.RenderRow(r, a.cells(r, t)...)
 	})
 }
 
 func (a *Application) EditProject() {
 	r, t := a.GetSelection()
-	a.ui.FormInput("Edit project", a.Project(t.ProjectID), func(text string) {
+	a.ui.FormInput("Move project", a.Project(t.ProjectID), func(text string) {
 		var projectID uint
 		for k, v := range a.projects {
 			if strings.EqualFold(text, v) {
@@ -198,23 +228,23 @@ func (a *Application) EditProject() {
 		}
 
 		if projectID == 0 {
-			a.ErrorMessage(fmt.Errorf("Invalid project Name: %s", text))
+			a.ui.ErrorMessage(fmt.Errorf("Invalid project Name: %s", text))
 			return
 		}
 
 		var err error
 		if err = a.client.MoveTask(t.ID, &map[string]interface{}{"project_id": projectID}); err != nil {
-			a.ErrorMessage(err)
+			a.ui.ErrorMessage(err)
 			return
 		}
 
 		if t, err = a.client.GetTask(t.ID); err != nil {
-			a.ErrorMessage(err)
+			a.ui.ErrorMessage(err)
 			return
 		}
 
-		a.tasks[r] = *t
-		a.RenderTableRow(r, t)
+		a.tasks[r] = t
+		a.ui.RenderRow(r, a.cells(r, t)...)
 	})
 }
 
@@ -223,28 +253,28 @@ func (a *Application) SetPriority(p int) {
 
 	var err error
 	if err = a.client.UpdateTask(t.ID, &map[string]interface{}{"priority": p}); err != nil {
-		a.ErrorMessage(err)
+		a.ui.ErrorMessage(err)
 		return
 	}
 
 	if t, err = a.client.GetTask(t.ID); err != nil {
-		a.ErrorMessage(err)
+		a.ui.ErrorMessage(err)
 		return
 	}
 
-	a.tasks[r] = *t
-	a.RenderTableRow(r, t)
+	a.tasks[r] = t
+	a.ui.RenderRow(r, a.cells(r, t)...)
 }
 
 func (a *Application) Complete() {
 	r, t := a.GetSelection()
 	if err := a.client.CloseTask(t.ID); err != nil {
-		a.ErrorMessage(err)
+		a.ui.ErrorMessage(err)
 		return
 	}
 
 	a.tasks = append(a.tasks[:r], a.tasks[r+1:]...)
-	a.ui.RemoveTableRow(r)
+	a.ui.RemoveRow(r)
 }
 
 func (a *Application) Delete() {
@@ -253,12 +283,12 @@ func (a *Application) Delete() {
 	a.ui.PopupConfirm(message, []string{"Delete", "Cancel"}, func(text string) {
 		if text == "Delete" {
 			if err := a.client.DeleteTask(t.ID); err != nil {
-				a.ErrorMessage(err)
+				a.ui.ErrorMessage(err)
 				return
 			}
 
 			a.tasks = append(a.tasks[:r], a.tasks[r+1:]...)
-			a.ui.RemoveTableRow(r)
+			a.ui.RemoveRow(r)
 		}
 	})
 }
@@ -266,36 +296,37 @@ func (a *Application) Delete() {
 func (a *Application) GetSelection() (int, *Task) {
 	r := a.ui.GetSelection()
 	t := a.tasks[r]
-	return r, &t
+	return r, t
 }
 
 func (a *Application) Update() error {
-	return a.SetFilter(a.GetFilter())
+	return a.SetFilter(a.config.Filter)
 }
 
-func (a *Application) SetFilter(text string) error {
-	a.config.Filter = text
-	a.config.Save()
+func (a *Application) SetFilter(filter string) error {
+	if filter == "" {
+		filter = "#inbox"
+	}
 
-	tasks, err := a.client.ListTasks(&map[string]interface{}{"filter": text})
+	tasks, err := a.client.ListTasks(&map[string]interface{}{"filter": filter})
 	if err != nil {
 		return err
 	}
 
-	a.tasks = *tasks
+	a.tasks = tasks
+	a.config.Filter = filter
+	a.config.Save()
+
 	a.ui.Init()
+	a.ui.FilterStatus(filter)
 	for i, t := range a.tasks {
-		a.RenderTableRow(i, &t)
+		a.ui.RenderRow(i, a.cells(i, t)...)
 	}
 
 	return nil
 }
 
-func (a *Application) GetFilter() string {
-	return a.config.Filter
-}
-
-func (a *Application) RenderTableRow(r int, t *Task) {
+func (a *Application) cells(r int, t *Task) []*tview.TableCell {
 	var c *tview.TableCell
 	cells := []*tview.TableCell{}
 
@@ -311,25 +342,24 @@ func (a *Application) RenderTableRow(r int, t *Task) {
 		c.SetTextColor(tcell.ColorFuchsia)
 	}
 
-	c = tview.NewTableCell("")
+	c = tview.NewTableCell(fmt.Sprintf("P%d", 5-t.Priority))
 	cells = append(cells, c)
 	switch t.Priority {
 	case 4:
-		c.SetText("P1").SetTextColor(tcell.ColorRed)
+		c.SetTextColor(tcell.ColorRed)
 	case 3:
-		c.SetText("P2").SetTextColor(tcell.ColorIndianRed)
+		c.SetTextColor(tcell.ColorIndianRed)
 	case 2:
-		c.SetText("P3").SetTextColor(tcell.ColorDarkRed)
+		c.SetTextColor(tcell.ColorDarkRed)
 	}
 
-	c = tview.NewTableCell(a.Project(t.ProjectID))
-	c.SetMaxWidth(16)
+	c = tview.NewTableCell(a.Project(t.ProjectID)).SetMaxWidth(16)
 	cells = append(cells, c)
 
 	c = tview.NewTableCell(t.Content)
 	cells = append(cells, c)
 
-	a.ui.RenderTableRow(r, cells...)
+	return cells
 }
 
 func (a *Application) Project(projectID uint) string {

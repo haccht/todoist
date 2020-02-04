@@ -12,7 +12,7 @@ type Comment struct {
 	Content   string `json:"content"`
 }
 
-func (c *Client) ListComments(args *map[string]interface{}) (*[]Comment, error) {
+func (c *Client) ListComments(args *map[string]interface{}) ([]*Comment, error) {
 	ro := new(requestOption)
 	ro.Params = make(map[string]string)
 	for k, v := range *args {
@@ -24,6 +24,6 @@ func (c *Client) ListComments(args *map[string]interface{}) (*[]Comment, error) 
 		return nil, err
 	}
 
-	out := &[]Comment{}
-	return out, decodeJSON(resp, out)
+	out := []*Comment{}
+	return out, decodeJSON(resp, &out)
 }

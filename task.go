@@ -75,7 +75,7 @@ func (t *Task) IsDuedate() bool {
 	}
 }
 
-func (c *Client) ListTasks(filter *map[string]interface{}) (*[]Task, error) {
+func (c *Client) ListTasks(filter *map[string]interface{}) ([]*Task, error) {
 	ro := new(requestOption)
 	if filter != nil {
 		ro.Params = make(map[string]string)
@@ -89,8 +89,8 @@ func (c *Client) ListTasks(filter *map[string]interface{}) (*[]Task, error) {
 		return nil, err
 	}
 
-	out := &[]Task{}
-	return out, decodeJSON(resp, out)
+	out := []*Task{}
+	return out, decodeJSON(resp, &out)
 }
 
 func (c *Client) AddTask(args *map[string]interface{}) (*Task, error) {

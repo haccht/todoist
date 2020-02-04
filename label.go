@@ -6,12 +6,12 @@ type Label struct {
 	Order uint   `json:"order"`
 }
 
-func (c *Client) ListLabels() (*[]Label, error) {
+func (c *Client) ListLabels() ([]*Label, error) {
 	resp, err := c.httpRequest("GET", restEndpoint("labels"), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	out := &[]Label{}
-	return out, decodeJSON(resp, out)
+	out := []*Label{}
+	return out, decodeJSON(resp, &out)
 }
