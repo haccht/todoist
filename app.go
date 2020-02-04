@@ -2,6 +2,7 @@ package todoist
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/gdamore/tcell"
@@ -30,13 +31,13 @@ func NewApplication() (*Application, error) {
 	a := &Application{ui: ui, config: config, client: client}
 	a.ui.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyEnter {
-			a.ShowDescription()
+			a.ShowDetail()
 		} else {
 			switch event.Rune() {
 			case '?':
 				a.ShowHelp()
 			case 'v':
-				a.ShowDescription()
+				a.ShowDetail()
 			case 'a':
 				a.QuickAdd()
 			case 'f':
@@ -132,7 +133,7 @@ func (a *Application) ShowHelp() {
 	a.ui.Popup("Help", help)
 }
 
-func (a *Application) ShowDescription() {
+func (a *Application) ShowDetail() {
 	_, t := a.GetSelection()
 
 	var b strings.Builder
@@ -141,7 +142,9 @@ func (a *Application) ShowDescription() {
 	fmt.Fprintf(&b, "[::b]Labels:[::-]   %s\n", strings.Join(a.Labels(t.LabelIDs), ","))
 	fmt.Fprintf(&b, "[::b]Priority:[::-] P%d\n", 5-t.Priority)
 	fmt.Fprintf(&b, "[::b]URL:[::-] %s\n", t.URL)
-	fmt.Fprintf(&b, "\n\n%s[-]", t.Content)
+
+	rep := regexp.MustCompile("\\((https?://[^\\)]+)\\)")
+	fmt.Fprintf(&b, "\n\n%s[-]", rep.ReplaceAllString(t.Content, "( $1 )"))
 
 	comments, err := a.client.ListComments(&map[string]interface{}{"task_id": t.ID})
 	if err != nil {
@@ -149,7 +152,7 @@ func (a *Application) ShowDescription() {
 	} else if len(comments) > 0 {
 		fmt.Fprintf(&b, "\n\n--\n")
 		for _, comment := range comments {
-			fmt.Fprintf(&b, "%s\n%s\n", comment.Posted, comment.Content)
+			fmt.Fprintf(&b, "%s\n%s\n", comment.Posted, rep.ReplaceAllString(comment.Content, "( $1 )"))
 		}
 	}
 
