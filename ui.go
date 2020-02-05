@@ -151,11 +151,14 @@ func (u *UI) PopupInput(title, text string, callbackFunc func(string)) {
 
 func (u *UI) Popup(title, content string) {
 	_, _, width, _ := u.pages.GetRect()
-	innterWidth := int(float32(width) * 0.8)
+	innerWidth := int(float32(width) * 0.8)
+	innerHeight := len(tview.WordWrap(content, innerWidth))
 
 	text := tview.NewTextView()
 	text.SetText(content).
 		SetDynamicColors(true).
+		SetWrap(true).
+		SetWordWrap(true).
 		SetTitle(fmt.Sprintf(" %s ", title)).SetTitleAlign(tview.AlignLeft).
 		SetBorder(true).SetBorderPadding(0, 0, 1, 1)
 
@@ -164,7 +167,7 @@ func (u *UI) Popup(title, content string) {
 		u.pages.HidePage("modal").RemovePage("modal")
 	})
 
-	u.pages.AddPage("modal", modal(text, innterWidth+2, 0), true, true)
+	u.pages.AddPage("modal", modal(text, innerWidth+2, innerHeight+2), true, true)
 	u.SetFocus(text)
 }
 

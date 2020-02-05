@@ -118,8 +118,7 @@ func (a *Application) Refresh() error {
 }
 
 func (a *Application) ShowHelp() {
-	var help = `
-       [::b]Q :[::-] Quit
+	var help = `       [::b]Q :[::-] Quit
        [::b]? :[::-] Help
 
        [::b]F :[::-] Filter the list
@@ -151,15 +150,15 @@ func (a *Application) ShowDetail() {
 	fmt.Fprintf(&b, "[::b]Priority:[-::-] P%d\n", 5-t.Priority)
 	fmt.Fprintf(&b, "[::b]URL:[-::-] %s\n", t.URL)
 
-	fmt.Fprintf(&b, "\n\n%s", marginLink(t.Content))
+	fmt.Fprintf(&b, "\n\n%s", tview.Escape(marginLink(t.Content)))
 
 	comments, err := a.client.ListComments(&map[string]interface{}{"task_id": t.ID})
 	if err != nil {
 		a.ui.ErrorMessage(err)
 	} else if len(comments) > 0 {
-		fmt.Fprintf(&b, "\n\n--\n")
+		fmt.Fprintf(&b, "\n\n--")
 		for _, comment := range comments {
-			fmt.Fprintf(&b, "%s\n%s\n", comment.Posted, marginLink(comment.Content))
+			fmt.Fprintf(&b, "\n%s\n%s", comment.Posted, tview.Escape(marginLink(comment.Content)))
 		}
 	}
 
@@ -373,15 +372,15 @@ func (a *Application) cells(r int, t *Task) []*tview.TableCell {
 		c.SetTextColor(tcell.ColorIndianRed)
 	}
 
-	c = tview.NewTableCell(fmt.Sprintf("P%d", 5-t.Priority))
+	c = tview.NewTableCell("")
 	cells = append(cells, c)
 	switch t.Priority {
 	case 4:
-		c.SetTextColor(tcell.ColorRed)
+		c.SetText("P1").SetTextColor(tcell.ColorRed)
 	case 3:
-		c.SetTextColor(tcell.ColorIndianRed)
+		c.SetText("P2").SetTextColor(tcell.ColorIndianRed)
 	case 2:
-		c.SetTextColor(tcell.ColorDarkRed)
+		c.SetText("P3").SetTextColor(tcell.ColorDarkRed)
 	}
 
 	c = tview.NewTableCell(a.project(t.ProjectID)).SetMaxWidth(16)

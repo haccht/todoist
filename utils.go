@@ -1,9 +1,11 @@
 package todoist
 
-import "regexp"
+import (
+	"regexp"
+)
 
 var (
-	link1 = regexp.MustCompile(`\[([^\]]+)\]\((https?://\S+)\)`)
+	link1 = regexp.MustCompile(`\[((?:[^\[\]]|\[[^\]]*\])*)\]\((https?://\S+)\)`)
 	link2 = regexp.MustCompile(`(https?://\S+)\s+\(([^\)]+)\)`)
 )
 
@@ -14,5 +16,5 @@ func sanitizeLink(content string) string {
 }
 
 func marginLink(content string) string {
-	return link1.ReplaceAllString(content, "[$1[]( $2 )")
+	return link1.ReplaceAllString(content, "[$1]( $2 )")
 }
