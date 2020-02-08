@@ -1,6 +1,7 @@
 package todoist
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -92,6 +93,30 @@ func decodeJSON(resp *http.Response, out interface{}) error {
 	dec := json.NewDecoder(resp.Body)
 
 	return dec.Decode(out)
+}
+
+func (c *Client) isPremium() (bool, error) {
+	params := url.Values{}
+	params.Add("sync_token", "*")
+	params.Add("resource_types", "[\"user\"]")
+
+	ro := NewRequestOption()
+	ro.Body = bytes.NewBufferString(params.Encode())
+	ro.Headers["Content-Type"] = "application/x-www-form-urlencoded"
+
+	resp, err := c.httpRequest("POST", syncEndpoint("/sync"), ro)
+	if err != nil {
+		return false, err
+	}
+
+	var out interface{}
+	err = decodeJSON(resp, &out)
+	if err != nil {
+		return false, err
+	}
+
+	isPremium, _ := out.(map[string]interface{})["user"].(map[string]interface{})["is_premium"].(bool)
+	return isPremium, nil
 }
 
 func (c *Client) httpRequest(method string, u *url.URL, ro *RequestOption) (*http.Response, error) {

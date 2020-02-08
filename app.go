@@ -333,22 +333,46 @@ func (a *Application) Update() error {
 	return a.SetFilter(a.config.Filter)
 }
 
-func (a *Application) SetFilter(filter string) error {
-	if filter == "" {
-		filter = "#inbox"
-	}
-
-	tasks, err := a.client.ListTasks(&map[string]interface{}{"filter": filter})
+func (a *Application) SetFilter(str string) error {
+	isPremium, err := a.client.isPremium()
 	if err != nil {
+		a.ui.ErrorMessage(err)
 		return err
 	}
 
-	a.tasks = tasks
-	a.config.Filter = filter
+	if str == "" {
+		str = "#inbox"
+	}
+
+	var params map[string]interface{}
+	if isPremium {
+		params = map[string]interface{}{"filter": str}
+	} else {
+		var projectID uint
+		for k, v := range a.projects {
+			if strings.EqualFold(str, v) {
+				projectID = k
+				break
+			}
+		}
+
+		if projectID == 0 {
+			a.ui.ErrorMessage(fmt.Errorf("Invalid project name: %s", str))
+			return err
+		}
+
+		params = map[string]interface{}{"project_id": projectID}
+	}
+
+	if a.tasks, err = a.client.ListTasks(&params); err != nil {
+		return err
+	}
+
+	a.config.Filter = str
 	a.config.Save()
 
 	a.ui.Init()
-	a.ui.FilterStatus(filter)
+	a.ui.FilterStatus(str)
 	for i, t := range a.tasks {
 		a.ui.RenderRow(i, a.cells(i, t)...)
 	}
